@@ -1,0 +1,15 @@
+---
+title: "Nadifa Hossain"
+image: "CFB405AB-5B44-400C-AAF2-49D285579D3D.jpeg"
+about:
+    template: jolla
+    links:
+        - icon: envelope
+          href: mailto:nahossain@ucsd.edu
+        - icon: linkedin
+          href: https://www.linkedin.com/in/nadifahossain/
+---
+
+About Me:
+
+To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
