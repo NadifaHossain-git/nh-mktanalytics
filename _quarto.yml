@@ -9,7 +9,8 @@ website:
       - href: index.qmd
         text: Home
       - resume.qmd
-
+      - href: projects.qmd  # <-- add this
+        text: Projects   
 format:
   html:
     theme:
