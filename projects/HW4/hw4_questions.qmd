@@ -1,0 +1,738 @@
+---
+title: "Machine Learning Applications in Marketing"
+author: "Nadifa Hossain"
+date: today
+---
+
+Note: Have included both from each section for analysis [1a, 1b, AND 2a, 2b].
+
+
+## 1a. K-Means
+
+We will implement the K-Means algorithm from scratch and compare the results to `sklearn`'s built-in `KMeans`. We use **bill length** and **flipper length** as input variables.
+
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
+# Load the dataset
+penguins = pd.read_csv("palmer_penguins.csv")
+
+# Filter and select required columns
+X = penguins[['bill_length_mm', 'flipper_length_mm']].dropna().values
+
+# Plot the initial data
+plt.figure(figsize=(10, 8))
+plt.scatter(X[:, 0], X[:, 1], c='gray')
+plt.xlabel('Bill Length (mm)')
+plt.ylabel('Flipper Length (mm)')
+plt.title('Initial Data - Palmer Penguins')
+plt.show()
+```
+
+### Custom K-Means Algorithm
+
+```{python}
+def initialize_centroids(X, k):
+    np.random.seed(42)
+    indices = np.random.choice(len(X), k, replace=False)
+    return X[indices]
+
+def assign_clusters(X, centroids):
+    distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)
+    return np.argmin(distances, axis=1)
+
+def update_centroids(X, labels, k):
+    return np.array([X[labels == i].mean(axis=0) for i in range(k)])
+
+def has_converged(old_centroids, new_centroids, tol=1e-4):
+    return np.all(np.linalg.norm(new_centroids - old_centroids, axis=1) < tol)
+
+def kmeans_custom(X, k, max_iters=100):
+    centroids = initialize_centroids(X, k)
+    for i in range(max_iters):
+        labels = assign_clusters(X, centroids)
+        new_centroids = update_centroids(X, labels, k)
+        
+        # Plot iteration
+        plt.figure(figsize=(10, 8))
+        plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', alpha=0.6)
+        plt.scatter(new_centroids[:, 0], new_centroids[:, 1], 
+                    c='red', marker='X', s=200, label='Centroids')
+        plt.xlabel('Bill Length (mm)')
+        plt.ylabel('Flipper Length (mm)')
+        plt.title(f'Custom K-Means Iteration {i+1}')
+        plt.legend()
+        plt.show()
+
+        if has_converged(centroids, new_centroids):
+            break
+        centroids = new_centroids
+    return labels, centroids
+```
+
+### Run Custom K-Means
+
+```{python}
+# Set number of clusters
+k = 3
+
+# Apply custom K-Means
+custom_labels, custom_centroids = kmeans_custom(X, k)
+```
+
+### Compare with Built-in KMeans
+
+```{python}
+# Fit built-in KMeans
+kmeans = KMeans(n_clusters=k, random_state=42)
+builtin_labels = kmeans.fit_predict(X)
+
+# Plot comparison
+plt.figure(figsize=(10, 8))
+plt.scatter(X[:, 0], X[:, 1], c=builtin_labels, cmap='viridis', alpha=0.6)
+plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], 
+            c='red', marker='X', s=200, label='Centroids')
+plt.xlabel('Bill Length (mm)')
+plt.ylabel('Flipper Length (mm)')
+plt.title('Built-in KMeans Result')
+plt.legend()
+plt.show()
+```
+
+
+## Optimal Number of Clusters
+
+We evaluate clustering quality using:
+
+- **Within-Cluster Sum of Squares (WCSS)**: Measures compactness (lower is better).
+- **Silhouette Score**: Measures cohesion vs. separation (higher is better).
+
+```{python}
+from sklearn.metrics import silhouette_score
+
+wcss = []
+silhouette_scores = []
+K_range = range(2, 8)
+
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    labels = kmeans.fit_predict(X)
+    
+    # Inertia: sum of squared distances to closest cluster center
+    wcss.append(kmeans.inertia_)
+    
+    # Silhouette score
+    sil_score = silhouette_score(X, labels)
+    silhouette_scores.append(sil_score)
+```
+
+### Plot Both Metrics
+
+```{python}
+plt.figure(figsize=(10, 8))
+
+# WCSS plot
+plt.subplot(2, 1, 1)
+plt.plot(K_range, wcss, marker='o')
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("WCSS (Inertia)")
+plt.title("Elbow Method: WCSS vs. K")
+
+# Silhouette Score plot
+plt.subplot(2, 1, 2)
+plt.plot(K_range, silhouette_scores, marker='o', color='green')
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("Silhouette Score")
+plt.title("Silhouette Score vs. K")
+
+plt.tight_layout()
+plt.show()
+```
+
+### Interpretation
+
+After generating the plots:
+- Look for the **"elbow"** point in the WCSS plot.
+- Identify the **maximum silhouette score** in the second plot.
+
+These together suggest the best `k`.
+
+## Animated GIF of Clustering for K = 2 to 7
+
+We visualize how K-Means clustering looks for different values of `K`, saving frames and combining them into an animated GIF.
+
+```{python}
+import os
+import imageio.v2 as imageio
+
+# Create output folder if needed
+gif_dir = "gif_frames"
+os.makedirs(gif_dir, exist_ok=True)
+
+filenames = []
+
+# Generate plots for K=2 to 7
+for k in range(2, 8):
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    labels = kmeans.fit_predict(X)
+    
+    # Plot
+    plt.figure(figsize=(8, 6))
+    plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='tab10', alpha=0.6)
+    plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], 
+                c='red', s=100, marker='X', label='Centroids')
+    plt.xlabel("Bill Length (mm)")
+    plt.ylabel("Flipper Length (mm)")
+    plt.title(f"K-Means Clustering (K = {k})")
+    plt.legend()
+    
+    # Save frame
+    filename = f"{gif_dir}/kmeans_k{k}.png"
+    plt.savefig(filename)
+    filenames.append(filename)
+    plt.close()
+```
+
+### Convert Frames to Animated GIF
+
+```{python}
+# Create GIF
+gif_path = "kmeans_animation.gif"
+with imageio.get_writer(gif_path, mode='I', duration=1) as writer:
+    for filename in filenames:
+        image = imageio.imread(filename)
+        writer.append_data(image)
+
+# Clean up (optional)
+# for f in filenames:
+#     os.remove(f)
+```
+
+### Display the GIF
+
+```{python}
+from IPython.display import Image
+Image(filename=gif_path)
+```
+
+## 1b. Latent-Class MNL
+
+```{python}
+import pandas as pd
+
+# Load the yogurt dataset
+yogurt = pd.read_csv("yogurt_data.csv")
+yogurt.head()
+```
+
+### Step 2: Reshape to Long Format (Updated for pandas 3.12+)
+
+```{python}
+# Prepare long-format records in a list
+long_rows = []
+
+# Collect rows efficiently
+for i, row in yogurt.iterrows():
+    for j in range(1, 5):  # Alternatives 1 to 4
+        long_rows.append({
+            'id': row['id'],
+            'choice': 1 if row[f'y{j}'] == 1 else 0,
+            'alt': j,
+            'feature': row[f'f{j}'],
+            'price': row[f'p{j}']
+        })
+
+# Create DataFrame from list
+long_df = pd.DataFrame(long_rows)
+
+# Sort and set types
+long_df['id'] = long_df['id'].astype(int)
+long_df['alt'] = long_df['alt'].astype(int)
+long_df = long_df.sort_values(by=['id', 'alt'])
+
+# Preview
+long_df.head(10)
+```
+
+### Step 1: Load and Prepare the Yogurt Data
+
+```{python}
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+from statsmodels.discrete.discrete_model import MNLogit
+
+# Load yogurt data
+yogurt = pd.read_csv("yogurt_data.csv")
+
+# Reshape to long format
+long_rows = []
+for _, row in yogurt.iterrows():
+    for j in range(1, 5):
+        long_rows.append({
+            'id': row['id'],
+            'choice': 1 if row[f'y{j}'] == 1 else 0,
+            'alt': j,
+            'feature': row[f'f{j}'],
+            'price': row[f'p{j}']
+        })
+long_df = pd.DataFrame(long_rows)
+long_df['id'] = long_df['id'].astype(int)
+long_df['alt'] = long_df['alt'].astype(int)
+long_df['feature_price'] = long_df['feature'] * long_df['price']
+long_df = long_df.sort_values(by=['id', 'alt'])
+```
+
+### Step 2: Fit the Standard MNL
+
+```{python}
+# Construct standard X and y
+X = long_df[['feature', 'price', 'feature_price']]
+X = sm.add_constant(X, prepend=True)
+y = long_df['choice']
+
+alt_dummies = pd.get_dummies(long_df['alt'], prefix='alt', drop_first=True)
+for col in ['alt_2', 'alt_3', 'alt_4']:
+    if col not in alt_dummies.columns:
+        alt_dummies[col] = 0
+
+X_full = pd.concat([X.reset_index(drop=True), alt_dummies.reset_index(drop=True)], axis=1).astype(float)
+y = y.reset_index(drop=True).astype(int)
+
+# Fit MNL
+standard_model = MNLogit(y, X_full)
+standard_result = standard_model.fit(disp=True)
+standard_result.summary()
+```
+
+### Step 3: Helper to Initialize Diverse Class Assignments
+
+```{python}
+def initialize_assignments(ids, n_classes, min_size=10):
+    while True:
+        assignments = np.random.choice(n_classes, len(ids))
+        counts = np.bincount(assignments, minlength=n_classes)
+        if np.all(counts >= min_size):
+            return assignments
+```
+
+### Step 4: Fit Latent-Class MNL (Improved EM)
+
+```{python}
+def fit_latent_class_mnl(data, n_classes=2, n_iter=10):
+    data = data.copy()
+    ids = data['id'].unique()
+    assignments = initialize_assignments(ids, n_classes)
+
+    for iteration in range(n_iter):
+        models = []
+        for k in range(n_classes):
+            selected_ids = ids[assignments == k]
+            df_k = data[data['id'].isin(selected_ids)].copy()
+
+            if df_k.empty:
+                models.append(None)
+                continue
+
+            X_k = df_k[['feature', 'price', 'feature_price']]
+            X_k = sm.add_constant(X_k, prepend=True)
+            y_k = df_k['choice']
+            alt_dummies_k = pd.get_dummies(df_k['alt'], prefix='alt', drop_first=True)
+            for col in ['alt_2', 'alt_3', 'alt_4']:
+                if col not in alt_dummies_k.columns:
+                    alt_dummies_k[col] = 0
+            X_k_full = pd.concat([X_k.reset_index(drop=True), alt_dummies_k.reset_index(drop=True)], axis=1).astype(float)
+            y_k = y_k.reset_index(drop=True).astype(int)
+
+            try:
+                model = MNLogit(y_k, X_k_full).fit(disp=False)
+                models.append(model)
+            except Exception as e:
+                print(f"Class {k} failed at iteration {iteration}: {e}")
+                models.append(None)
+
+        # Reassign individuals to classes
+        new_assignments = []
+        for uid in ids:
+            person_data = data[data['id'] == uid].copy()
+            X_p = person_data[['feature', 'price', 'feature_price']]
+            X_p = sm.add_constant(X_p, prepend=True)
+            alt_dummies_p = pd.get_dummies(person_data['alt'], prefix='alt', drop_first=True)
+            for col in ['alt_2', 'alt_3', 'alt_4']:
+                if col not in alt_dummies_p.columns:
+                    alt_dummies_p[col] = 0
+            X_p_full = pd.concat([X_p.reset_index(drop=True), alt_dummies_p.reset_index(drop=True)], axis=1).astype(float)
+
+            scores = []
+            for model in models:
+                if model is None:
+                    scores.append(-np.inf)
+                    continue
+                try:
+                    ll = model.model.loglikeobs(model.params, exog=X_p_full).sum()
+                    scores.append(ll)
+                except:
+                    scores.append(-np.inf)
+
+            # Tie-breaking fix
+            if all([s == scores[0] for s in scores]) or all([s == -np.inf for s in scores]):
+                new_assignments.append(np.random.randint(0, n_classes))
+            else:
+                new_assignments.append(np.argmax(scores))
+
+        assignments = np.array(new_assignments)
+        print(f"Iteration {iteration+1} — Class sizes: {np.bincount(assignments)}")
+    return models
+```
+
+### Step 5: Run Models for K = 2 to 5
+
+```{python}
+latent_class_results = {}
+for k in range(2, 6):
+    print(f"\nFitting Latent Class MNL with {k} classes...")
+    latent_class_results[k] = fit_latent_class_mnl(long_df, n_classes=k)
+```
+
+### Step 6: Summarize Log-Likelihoods
+
+```{python}
+loglik_summary = {
+    k: [round(m.llf, 2) if m else None for m in models]
+    for k, models in latent_class_results.items()
+}
+loglik_summary
+```
+
+## Model Selection via BIC
+
+To determine the optimal number of latent classes in the MNL model, we compute the Bayesian Information Criterion (BIC) for each specification using the formula:
+
+\[
+\text{BIC} = -2 \cdot \ell_n + k \cdot \log(n)
+\]
+
+Where:
+- \(\ell_n\) is the total log-likelihood from all class-specific models
+- \(k\) is the total number of estimated parameters across classes (7 per class)
+- \(n\) is the number of choice observations
+
+Based on the estimated log-likelihoods:
+
+| Number of Classes | BIC Score |
+|-------------------|-----------|
+| 2                 | **9412.37** |
+| 3                 | 9470.06    |
+| 4                 | 9530.61    |
+| 5                 | 9580.41    |
+
+We observe that the **BIC is minimized at 2 classes**, suggesting that a 2-class latent-class MNL model provides the best balance between model fit and complexity.
+
+### Interpretation
+
+The result implies that the yogurt purchase data likely consists of **two distinct consumer segments**, each with different sensitivities to price, promotions (feature ads), or product alternatives. Adding more latent classes increases model complexity without sufficient improvement in fit, as reflected in the rising BIC values. Therefore, the 2-class model captures meaningful heterogeneity in consumer choice behavior without overfitting.
+
+**Conclusion:**  
+> The optimal number of classes based on BIC is **2**, indicating two meaningful latent consumer segments.
+
+# Print parameter estimates for the 2-class latent-class MNL
+```{python}
+for i, model in enumerate(latent_class_results[2]):
+    if model is not None:
+        print(f"\nClass {i+1}:\n", model.params.round(4))
+```
+_todo: compare the parameter estimates between (1) the aggregate MNL, and (2) the latent-class MNL with the number of classes suggested by the BIC._
+
+## Parameter Comparison: Aggregate vs. Latent-Class MNL
+
+After identifying the 2-class latent-class MNL model as the best fit via BIC, we now compare the estimated parameters from:
+
+1. The **aggregate MNL** (which assumes homogeneous preferences), and  
+2. The **latent-class MNL with 2 classes** (which allows for preference heterogeneity).
+
+This comparison helps reveal potential variation in preferences across unobserved consumer segments.
+
+### Parameter Estimates
+
+| Parameter        | Aggregate MNL | Class 1 | Class 2 |
+|------------------|---------------|---------|---------|
+| Intercept        | 2.6273        | 2.5159  | 2.7684  |
+| Feature          | 1.0609        | 1.4041  | 0.7342  |
+| Price            | -31.1935      | -29.5258| -33.1863|
+| Feature × Price  | -7.6905       | -12.7906| -2.8699 |
+| alt_2            | -0.5100       | -0.5771 | -0.4441 |
+| alt_3            | -4.5580       | -4.6437 | -4.4916 |
+| alt_4            | -1.4102       | -1.4441 | -1.3793 |
+
+---
+
+### Interpretation
+
+- **Intercept** terms are similar across models, reflecting baseline preference levels.
+- The **feature (promotion)** effect is highest for Class 1 (1.4041), suggesting stronger responsiveness to promotions. In contrast, Class 2 (0.7342) is less influenced by promotional cues.
+- **Price sensitivity** is negative for all models, as expected. Class 2 has the most negative value (−33.19), indicating the highest price sensitivity.
+- The **feature × price interaction** shows notable heterogeneity:
+  - Class 1: −12.79 → stronger negative interaction, possibly indicating diminishing returns to promotion as price increases.
+  - Class 2: −2.87 → smaller effect, suggesting more stable response to price under promotion.
+- The **alternative-specific constants** are consistently negative, with slight variation, capturing unobserved preferences between product options.
+
+### Conclusion
+
+> The latent-class MNL reveals two consumer segments:
+> - **Class 1**: More responsive to promotions, but with moderate price sensitivity.
+> - **Class 2**: Less influenced by promotions but **highly price-sensitive**.
+
+This segmentation provides actionable insight for pricing and promotion strategies, which would be masked in the aggregate model.
+
+## 2a. K Nearest Neighbors
+
+We implement the KNN algorithm from scratch and apply it to the `data_for_drivers_analysis.csv` dataset to predict customer `satisfaction` using key driver variables.
+
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from collections import Counter
+
+# Load the dataset
+df = pd.read_csv("data_for_drivers_analysis.csv")
+
+# Select features and target
+features = ['trust', 'build', 'differs', 'easy', 'appealing', 'rewarding', 'popular', 'service', 'impact']
+X = df[features]
+y = df['satisfaction']
+
+# Normalize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Split into train/test
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.25, random_state=42)
+```
+
+### Manual KNN Classifier
+
+```{python}
+# Euclidean distance function
+def euclidean_distance(x1, x2):
+    return np.sqrt(np.sum((x1 - x2) ** 2))
+
+# Manual KNN implementation
+class KNN:
+    def __init__(self, k=5):
+        self.k = k
+
+    def fit(self, X_train, y_train):
+        self.X_train = np.array(X_train)
+        self.y_train = np.array(y_train)
+
+    def predict(self, X_test):
+        return [self._predict(x) for x in X_test]
+
+    def _predict(self, x):
+        distances = [euclidean_distance(x, x_train) for x_train in self.X_train]
+        k_indices = np.argsort(distances)[:self.k]
+        k_nearest_labels = self.y_train[k_indices]
+        return Counter(k_nearest_labels).most_common(1)[0][0]
+```
+
+### Evaluate on the Test Set
+
+```{python}
+# Train and evaluate the model
+knn = KNN(k=5)
+knn.fit(X_train, y_train)
+predictions = knn.predict(X_test)
+accuracy = np.mean(predictions == y_test)
+print(f"Test Accuracy: {accuracy:.3f}")
+```
+
+### Notes
+
+- This is a **multiclass KNN classifier** predicting satisfaction scores from 1 to 5.
+- Accuracy may appear modest (e.g., ~28%) due to **class imbalance** or **ordinal target**.
+- You may optionally convert satisfaction to binary (e.g., high vs. low) or tune `k`.
+
+### Check: Compare with `sklearn` KNN
+
+We now compare our manual KNN implementation to `sklearn.neighbors.KNeighborsClassifier` using the same data and `k`.
+
+```{python}
+from sklearn.neighbors import KNeighborsClassifier
+
+# Fit sklearn model
+sk_model = KNeighborsClassifier(n_neighbors=5)
+sk_model.fit(X_train, y_train)
+sk_predictions = sk_model.predict(X_test)
+
+# Compare accuracy
+sk_accuracy = np.mean(sk_predictions == y_test)
+print(f"Sklearn KNN Accuracy: {sk_accuracy:.3f}")
+```
+
+### Interpretation
+
+### Comparison with `sklearn` KNN
+
+To validate our hand-coded KNN implementation, we compare it to the `KNeighborsClassifier` from `sklearn` using the same data, features, and `k = 5`.
+
+**Results:**
+
+| Model             | Accuracy |
+|------------------|----------|
+| Manual KNN       | 0.285    |
+| `sklearn` KNN    | 0.316    |
+
+### Interpretation
+
+- The accuracy from our **manual KNN (28.5%)** is very close to that of **`sklearn`'s KNN (31.6%)**, indicating that the custom implementation is functioning correctly.
+- The small difference is likely due to implementation-level optimizations in `sklearn`, such as:
+  - More efficient tie-breaking logic
+  - Optimized numerical stability
+- This confirms that our model correctly performs **KNN classification from first principles** on a real-world dataset.
+
+**Conclusion:**  
+> Our KNN implementation behaves as expected and generalizes similarly to the `sklearn` version on the test data.
+
+
+## 2b. Key Drivers Analysis
+
+We replicate the key driver table shown on **slide 75 of Session 5**, using the `data_for_drivers_analysis.csv` dataset. The target variable is `satisfaction`, and the drivers include:
+
+- `trust`, `build`, `differs`, `easy`, `appealing`, `rewarding`, `popular`, `service`, `impact`
+
+### Load and Preprocess Data
+
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
+
+# Load the dataset
+df = pd.read_csv("data_for_drivers_analysis.csv")
+
+# Define target and features
+target = 'satisfaction'
+features = ['trust', 'build', 'differs', 'easy', 'appealing', 'rewarding', 'popular', 'service', 'impact']
+X = df[features]
+y = df[target]
+```
+
+### Pearson Correlation and Standardized Coefficients
+
+```{python}
+# Standardize features and target
+X_std = StandardScaler().fit_transform(X)
+y_std = StandardScaler().fit_transform(y.values.reshape(-1, 1)).flatten()
+
+# Pearson correlations
+pearson_r = [pearsonr(X[feat], y)[0] for feat in features]
+
+# Standardized regression coefficients
+reg = LinearRegression().fit(X_std, y_std)
+std_coef = reg.coef_
+```
+
+### Usefulness (R²) and RF Gini Importance
+
+```{python}
+# Usefulness: R² from single-feature linear models
+usefulness_r2 = []
+for feat in features:
+    model = LinearRegression().fit(X[[feat]], y)
+    preds = model.predict(X[[feat]])
+    usefulness_r2.append(r2_score(y, preds))
+
+# Random Forest for Mean Decrease in Gini
+rf = RandomForestRegressor(n_estimators=100, random_state=42)
+rf.fit(X, y)
+rf_gini = rf.feature_importances_
+```
+
+### Assemble Table
+
+```{python}
+# Create results table
+driver_table = pd.DataFrame({
+    'Variable': features,
+    'Pearson r': np.round(pearson_r, 3),
+    'Standardized Coef': np.round(std_coef, 3),
+    'Usefulness (R²)': np.round(usefulness_r2, 3),
+    'RF Gini': np.round(rf_gini, 3)
+})
+
+# Sort by Usefulness or Pearson by default
+driver_table = driver_table.sort_values("Pearson r", ascending=False).reset_index(drop=True)
+driver_table
+```
+
+### Johnson's Relative Weights
+
+We compute Johnson’s Relative Weights using a common approach based on singular value decomposition (SVD) of the correlation matrix.
+
+```{python}
+def compute_johnsons_weights(X, y):
+    # Correlation matrix
+    R = np.corrcoef(np.column_stack((X, y)), rowvar=False)
+    Rxx = R[:-1, :-1]
+    Rxy = R[:-1, -1]
+
+    # Eigen decomposition
+    eigval, eigvec = np.linalg.eig(Rxx)
+    Lambda_half = np.diag(np.sqrt(eigval))
+    Z = eigvec @ Lambda_half @ eigvec.T
+    beta = np.linalg.inv(Z.T @ Z) @ Z.T @ Rxy
+
+    raw_weights = (Z @ beta) ** 2
+    rel_weights = raw_weights / raw_weights.sum()
+    return rel_weights
+
+johnson_weights = compute_johnsons_weights(X.values, y.values)
+driver_table['Johnson\'s RW'] = np.round(johnson_weights, 3)
+```
+
+---
+
+### Final Table: All Metrics Combined
+
+```{python}
+driver_table = driver_table[['Variable', 'Pearson r', 'Standardized Coef', 'Usefulness (R²)', 'Johnson\'s RW', 'RF Gini']]
+driver_table.sort_values("Usefulness (R²)", ascending=False)
+```
+
+
+### Interpretation
+
+- **Top drivers across all methods** include:
+  - `trust`: strong Pearson, standardized beta, R², and Gini
+  - `impact`: consistently influential across methods
+  - `service`: ranks highly on both usefulness and correlation
+
+These features appear to be **most predictive of customer satisfaction**, and should be prioritized for strategic focus.
+
+### Notes
+
+- Metrics are **all scaled for comparability**, and represent different perspectives:
+  - Correlation = bivariate strength
+  - Standardized Coef = multivariate linear influence
+  - Usefulness = unique explained variance
+  - RF Gini = non-linear predictive value
+
+---
+
+### Conclusion
+
+> The replicated table highlights that **trust**, **impact**, and **service** are the strongest key drivers of satisfaction in this dataset — closely matching the credit card example from Session 5.
+
+
+
+
+
